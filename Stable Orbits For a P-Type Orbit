@@ -1,0 +1,161 @@
+#Import scipy
+import scipy as sci#Import matplotlib and associated modules for 3D and animations
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import animation as an
+from IPython.display import HTML
+#Define universal gravitation constant
+G=6.67408e-11 #N-m2/kg2#Reference quantities
+m_nd=1.989e+30 #kg #mass of the sun
+r_nd=5.326e+12 #m #distance between stars in Alpha Centauri
+v_nd=30000 #m/s #relative velocity of earth around the sun
+t_nd=79.91*365*24*3600*0.51 #s #orbital period of Alpha Centauri
+
+#Net constants
+K1=G*t_nd*m_nd/(r_nd**2*v_nd)
+K2=v_nd*t_nd/r_nd
+
+#Define masses
+m1=0.5 #Star A
+m2=1 #Star B
+m3 =0.0003 #Planet Dasvidania
+ 
+#A function defining the equations of motion 
+def ThreeBodyEquations(w,t,G,m1,m2,m3):
+    r1=w[:2]
+    r2=w[2:4]
+    r3=w[4:6]
+    v1=w[6:8]
+    v2=w[8:10]    
+    v3=w[10:12]
+    
+    #Calculate magnitude or norm of vector  
+
+    r12=sci.linalg.norm(r2-r1)
+    r13=sci.linalg.norm(r3-r1)
+    r23=sci.linalg.norm(r3-r2)
+    
+    #Differential Equations for planets
+    
+    dv1dt=K1*m2*(r2-r1)/r12**3 + K1*m3*(r3-r1)/r13**3    
+    dv2dt=K1*m1*(r1-r2)/r12**3 + K1*m3*(r3-r2)/r23**3
+    dv3dt=K1*m1*(r1-r3)/r13**3 + K1*m2*(r2-r3)/r23**3
+    
+    dr1dt=K2*v1
+    dr2dt=K2*v2
+    dr3dt=K2*v3
+    
+    #Concatenation
+    r12_derivs=sci.concatenate((dr1dt,dr2dt))
+    r_derivs=sci.concatenate((r12_derivs,dr3dt))
+    v12_derivs=sci.concatenate((dv1dt,dv2dt))
+    v_derivs=sci.concatenate((v12_derivs,dv3dt))
+    
+    derivs=sci.concatenate((r_derivs,v_derivs))
+    return derivs
+#Define masses
+ 
+xf = 3
+vf = 1
+n = 500
+tf = 20 
+t0= 0
+X0 = []
+V0 = []
+i = 0.09
+while  i<=xf:
+      i = i + 0.01
+      j = 0.09
+      while  j <= vf:
+              
+             r1=[-0.5,0] #m
+             r2=[0.5,0] #m  
+             r3 = [i,0] #m
+             r1=sci.array(r1,dtype="float64")
+             r2=sci.array(r2,dtype="float64")
+             r3=sci.array(r3, dtype="float64")
+             #Find Centre of Mass
+
+             r_com=(m1*r1+m2*r2+m3*r3)/(m1+m2+m3)
+
+             #Define initial velocities
+             v1=[0.01,0.01] #m/s 
+             v2=[-0.05,-0.1] #m/s
+             v3=[0,j]
+             #Convert velocity vectors to arrays
+             v1=sci.array(v1,dtype="float64")
+             v2=sci.array(v2,dtype="float64")
+             v3=sci.array(v3,dtype="float64")
+ 
+             init_params=sci.array([r1,r2,r3,v1,v2,v3]) #create array of initial params
+             init_params=init_params.flatten() #flatten array to make it 1D
+             time_span=sci.linspace(t0,tf,n) #8 orbital periods and 500 points#Run the ODE solver
+             import scipy.integrate
+             #Solution to the system of differential equations 
+             three_body_sol=sci.integrate.odeint(ThreeBodyEquations,init_params,time_span,args=(G,m1,m2,m3))
+             r1_sol=three_body_sol[:,:2]
+             r2_sol=three_body_sol[:,2:4]
+             r3_sol=three_body_sol[:,4:6]
+             #The Center of mass:
+             rcom_sol = (m1*r1_sol + m2*r2_sol + m3*r3_sol)/(m1+m2)
+             r1com_sol = r1_sol-rcom_sol
+             r2com_sol = r2_sol-rcom_sol
+             r3com_sol = r3_sol-rcom_sol
+             v3_sol=three_body_sol[:,10:12]
+             def x1(k):
+                   x1 = sum(r1com_sol[k:-n+k+1,0])
+                   return x1    
+             def y1(k):
+                    y1 = sum(r1com_sol[k:-n+k+1,1])
+                    return y1
+             def x2(k):
+                    x2 = sum(r2com_sol[k:-n+k+1,0])
+                    return x2    
+             def y2(k):
+                    y2 = sum(r2com_sol[k:-n+k+1,1])
+                    return y2  
+             def x3(k):
+                    x3 = sum(r3com_sol[k:-n+k+1,0])
+                    return x3
+             def y3(k):
+                    y3 = sum(r3com_sol[k:-n+k+1,1])
+                    return y3
+             def vx3(k):
+                    vx3 = sum(v3_sol[k:-n+k+1,0])
+                    return vx3
+             def vy3(k):
+                    vy3 = sum(v3_sol[k:-n+k+1,1])
+                    return vy3
+             def E(k):
+                    E = -G*m1*(m_nd/r_nd)/((x1(k)-x3(k))**2+(y1(k)-y2(k))**2)**(1/2)-G*m2*(m_nd/r_nd)/((x2(k)-x3(k))**2+(y2(k)-y2(k))**2)**(1/2)+v_nd**2*(1/2)*(vy3(k)**2+vx3(k)**2)
+                    return E
+             e = 0
+             for k in range(0,n-2):
+                    if (x3(k) != x1(k) or y3(k) !=y1(k)) and (x3(k) != x2(k) or y3(k) !=y2(k)) and E(k)<0:
+                        e = e+1      
+             if e == len(range(0,n-2)):
+                    X0.append(i)
+                    V0.append(j)
+             j = j +0.01
+      
+import matplotlib.pyplot as plt
+X = X0
+Y = V0
+m = 0
+ 
+#for i in X0:
+ #   V =[]
+  #  V.append(i)
+   # V.append(V0[m])
+   # roun = [round(num,3) for num in V]
+   # m= m + 1
+   # print(roun)
+fig, ax = plt.subplots()
+plt.plot(X, Y, 'ro')
+plt.grid()
+plt.xlim(0.9,3)
+plt.ylim(0,0.7)
+ax.set_title("Phase space of stable orbits",fontsize=14)
+ax.set_xlabel("Initial Radial Position (5 UA)",fontsize=14)
+ax.set_ylabel("Initial Velocity (Relative to Sun)",fontsize=14)
+plt.show()
